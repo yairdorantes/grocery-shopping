@@ -2,14 +2,13 @@ import {
   Autocomplete,
   Badge,
   Button,
-  CloseButton,
+  Checkbox,
   Input,
   NumberInput,
 } from "@mantine/core";
 import "./App.css";
 import { BsCart3 } from "react-icons/bs";
 
-import { TbReportMoney } from "react-icons/tb";
 import ItemCard from "./components/ItemCard";
 import { useEffect, useState } from "react";
 import type { Item } from "./components/ItemCard";
@@ -20,6 +19,8 @@ import { CgNotes } from "react-icons/cg";
 import { LuSearch } from "react-icons/lu";
 import emojiRegex from "emoji-regex";
 import SelectedItemsUI from "./components/SelectedItemsUI";
+import { v4 as uuidv4 } from "uuid";
+
 const regexEmoji = emojiRegex();
 
 const dateOptions: Intl.DateTimeFormatOptions = {
@@ -36,16 +37,22 @@ const dateOptions: Intl.DateTimeFormatOptions = {
 // en-CA gives ISO-like format: YYYY-MM-DD
 // "2025-07-03, 17:15:00"
 const availableItems = [
-  { id: "apple11.00", name: "Apple", ilustration: "🍎" },
-  { id: "2", name: "Orange", ilustration: "🍊" },
-  { id: "4", name: "Peach", ilustration: "🍑" },
-  { id: "3", name: "Banana", ilustration: "🍌" },
+  { name: "Apple", ilustration: "🍎" },
+  { name: "Orange", ilustration: "🍊" },
+  { name: "Peach", ilustration: "🍑" },
+  { name: "Banana", ilustration: "🍌" },
 ];
 function App() {
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<Item[]>(() => {
+    const saved = localStorage.getItem("allItems");
+    return saved ? JSON.parse(saved) : [];
+  });
   const [total, setTotal] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
-  const [allItems, setAllItems] = useState<Item[]>([]);
+  const [allItems, setAllItems] = useState<Item[]>(() => {
+    const saved = localStorage.getItem("allItems");
+    return saved ? JSON.parse(saved) : [];
+  });
   const [selectedItems, setSelectedItems] = useState<Item[]>([]);
 
   const [searchKey, setSearchKey] = useState("");
@@ -77,9 +84,7 @@ function App() {
   const addItem = (item: Item) => {
     if (item.price > 0) {
       const itemString = getItemString(item.name);
-      const itemId = `${itemString.name
-        .replace(/\s+/g, "")
-        .toLowerCase()}-${item.price.toFixed(2)}`;
+      const itemId = uuidv4();
       const newItem = {
         ...item,
         id: itemId,
@@ -173,6 +178,18 @@ function App() {
     }
   }, [searchKey, allItems]);
 
+  useEffect(() => {
+    localStorage.setItem("allItems", JSON.stringify(allItems));
+  }, [allItems]);
+
+  useEffect(() => {
+    const savedAllItems = localStorage.getItem("allItems");
+    if (savedAllItems) {
+      setAllItems(JSON.parse(savedAllItems));
+      setItems(JSON.parse(savedAllItems)); // initial items list = all items
+    }
+  }, []);
+
   return (
     <>
       <div className='text-white min-h-screen flex  p-2 justify-center '>
@@ -231,7 +248,8 @@ function App() {
                   prefix='$'
                   className='flex-7'
                   allowNegative={false}
-                  decimalSeparator=','
+                  decimalSeparator='.'
+                  thousandSeparator=','
                   // thousandSeparator=','
                   // onChange={(e) => {
                   //   const val = parseFloat(e.target.value);
@@ -275,8 +293,22 @@ function App() {
 
           <div className='bg-gray-800 rounded-xl p-4 max-h-[48vh]   overflow-y-auto space-y-4'>
             <div className='flex items-center justify-between gap-2'>
-              <h3 className='flex items-center gap-1 font-semibold'>
-                <TbReportMoney /> Your Items
+              <h3 className='flex items-center ml-1 gap-1 font-semibold'>
+                <Checkbox
+                  onClick={(e) => {
+                    if (e.currentTarget.checked) {
+                      setSelectedItems(allItems);
+                    } else {
+                      setSelectedItems([]);
+                    }
+                  }}
+                  defaultChecked={false}
+                  checked={selectedItems.length > 0}
+                  variant='outline'
+                  color='green'
+                  radius='xl'
+                />
+                Your Items
               </h3>
               <Input
                 className='w-[65%] '
