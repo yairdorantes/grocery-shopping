@@ -9,7 +9,7 @@ export interface Item {
   price: number;
   quantity: number;
   notes?: string;
-  ilustration?: string;
+  illustration?: string;
   creartionDate?: string;
 }
 
@@ -41,7 +41,9 @@ const ItemCard = ({
         />
       </div>
       <div className='flex'>
-        <div className='p-4 text-4xl flex items-center'>{item.ilustration}</div>
+        <div className='p-4 text-4xl flex items-center'>
+          {item.illustration}
+        </div>
         <div className='flex flex-col space-y-4'>
           <div>
             <p className='font-semibold text-lg '>{item.name}</p>

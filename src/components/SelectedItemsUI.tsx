@@ -49,7 +49,7 @@ const SelectedItemsUI = ({ items }: SelectedItemsUIProps) => {
           <div key={key} className='flex justify-between items-start'>
             <div>
               <div className='font-bold flex items-center gap-1'>
-                {item.ilustration}
+                {item.illustration}
                 {item.name}
               </div>
               {/* <div className='text-sm text-gray-300'>Organic</div> */}

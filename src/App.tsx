@@ -8,7 +8,6 @@ import {
 } from "@mantine/core";
 import "./App.css";
 import { BsCart3 } from "react-icons/bs";
-
 import ItemCard from "./components/ItemCard";
 import { useEffect, useState } from "react";
 import type { Item } from "./components/ItemCard";
@@ -20,27 +19,22 @@ import { LuSearch } from "react-icons/lu";
 import emojiRegex from "emoji-regex";
 import SelectedItemsUI from "./components/SelectedItemsUI";
 import { v4 as uuidv4 } from "uuid";
+import { DateTime } from "luxon";
+import axios from "axios";
+import ModalCheckout from "./components/ModalCheckout";
+import { ToastContainer, toast } from "react-toastify";
 
 const regexEmoji = emojiRegex();
 
-const dateOptions: Intl.DateTimeFormatOptions = {
-  timeZone: "America/Mexico_City",
-  hour12: false,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-};
+const apiUrl = import.meta.env.VITE_API_URL;
 
 // en-CA gives ISO-like format: YYYY-MM-DD
 // "2025-07-03, 17:15:00"
 const availableItems = [
-  { name: "Apple", ilustration: "🍎" },
-  { name: "Orange", ilustration: "🍊" },
-  { name: "Peach", ilustration: "🍑" },
-  { name: "Banana", ilustration: "🍌" },
+  { name: "Apple", illustration: "🍎" },
+  { name: "Orange", illustration: "🍊" },
+  { name: "Peach", illustration: "🍑" },
+  { name: "Banana", illustration: "🍌" },
 ];
 function App() {
   const [items, setItems] = useState<Item[]>(() => {
@@ -59,6 +53,8 @@ function App() {
 
   const [autoOptions, setAutoOptions] = useState<string[]>([]);
 
+  const [modalCheck, setModalCheck] = useState(false);
+
   const getItemString = (name: string) => {
     const parts = name.split(" "); //split to get the emoji (if exists)
     console.log(parts);
@@ -66,9 +62,9 @@ function App() {
     const hasEmoji = match != null;
 
     if (hasEmoji) {
-      return { ilustration: parts[0], name: parts[1] };
+      return { illustration: parts[0], name: parts[1] };
     } else {
-      return { ilustration: "🛒", name: name };
+      return { illustration: "🛒", name: name };
     }
   };
   const isSelectedItem = (id: string) => {
@@ -76,10 +72,7 @@ function App() {
   };
 
   const getCurrentDate = () => {
-    const dateInMexico = new Intl.DateTimeFormat("en-CA", dateOptions).format(
-      new Date()
-    );
-    return dateInMexico;
+    return DateTime.now().setZone("America/Mexico_City").toISO(); // returns: 2025-07-05T22:01:30.000-06:00
   };
   const addItem = (item: Item) => {
     if (item.price > 0) {
@@ -91,7 +84,7 @@ function App() {
         name: itemString.name,
         price: parseFloat(item.price),
         quantity: 1,
-        ilustration: itemString.ilustration,
+        illustration: itemString.illustration,
         creationDate: getCurrentDate(),
       };
       setItems([newItem, ...items]);
@@ -134,12 +127,73 @@ function App() {
       }
     });
   };
+  const checkout = () => {
+    const storeOldItems = localStorage.getItem("oldItems");
+    if (storeOldItems) {
+      localStorage.setItem(
+        "oldItems",
+        JSON.stringify([...JSON.parse(storeOldItems), ...allItems])
+      );
+    } else {
+      localStorage.setItem("oldItems", JSON.stringify(allItems));
+    }
+    // localStorage.setItem("oldItems", JSON.stringify(allItems));
+    localStorage.removeItem("allItems");
+    setAllItems([]);
+    setSelectedItems([]);
+    setModalCheck(false);
+    // TODO: implement checkout logic
+  };
+
+  const sendItemsToServer = async () => {
+    const items = localStorage.getItem("oldItems");
+    const itemsArray = JSON.parse(items || "[]") as Item[];
+    if (itemsArray.length > 0) {
+      axios
+        .post(`${apiUrl}/shopping/items`, { items: itemsArray })
+        .then((res) => {
+          const { status, data } = res;
+          if (status === 201) {
+            toast.success("All items were saved successfully.");
+            localStorage.removeItem("oldItems");
+            setModalCheck(false);
+          } else if (status === 207) {
+            toast.warn("Some items couldn't be saved.");
+            console.warn("Partial failure details:", data.errors);
+
+            // Optional: Display or log detailed errors
+            data.errors.forEach((err) => {
+              console.warn(`Item ${err.index} failed: ${err.error}`);
+            });
+
+            // Optional: Retry only failed items, etc.
+          } else {
+            toast.error("Unexpected response from the server.");
+            console.error("Unexpected status:", status, data);
+          }
+        })
+        .catch((err) => {
+          console.error("Couldn't send items to server", err);
+
+          // Handle different types of errors
+          if (err.response?.status === 400) {
+            toast.error("Bad request: Check the item format.");
+          } else if (err.response?.status === 500) {
+            toast.error("Server error: Try again later.");
+          } else {
+            toast.error("Network or unknown error.");
+          }
+        });
+    }
+    // TODO: implement server-side logic to send the items
+  };
 
   const form = useForm<Item>({
     mode: "controlled",
     initialValues: {
+      id: "",
       name: "",
-      price: "",
+      price: undefined,
       notes: "",
       quantity: 1,
     },
@@ -157,12 +211,12 @@ function App() {
 
     setTotal(totalAmount);
     setTotalItems(totalItems);
-    console.log(items);
+    // console.log(items);
   }, [items]);
 
   useEffect(() => {
     const itemsNames: string[] = availableItems.map((item) => {
-      return `${item.ilustration} ${item.name}`;
+      return `${item.illustration} ${item.name}`;
     });
     setAutoOptions(itemsNames);
   }, []);
@@ -188,10 +242,12 @@ function App() {
       setAllItems(JSON.parse(savedAllItems));
       setItems(JSON.parse(savedAllItems)); // initial items list = all items
     }
+    sendItemsToServer();
   }, []);
 
   return (
     <>
+      <ToastContainer />
       <div className='text-white min-h-screen flex  p-2 justify-center '>
         <div className='w-full max-w-md space-y-6'>
           <div className='bg-green-700 rounded-xl p-4 '>
@@ -243,6 +299,7 @@ function App() {
                   size='md'
                   leftSection={<FaDollarSign />}
                   radius='md'
+                  required
                   placeholder='Price ($)'
                   min={1}
                   prefix='$'
@@ -250,6 +307,7 @@ function App() {
                   allowNegative={false}
                   decimalSeparator='.'
                   thousandSeparator=','
+                  decimalScale={2}
                   // thousandSeparator=','
                   // onChange={(e) => {
                   //   const val = parseFloat(e.target.value);
@@ -269,7 +327,7 @@ function App() {
                   // onClick={() => addItem()}
                   disabled={
                     form.values.price <= 0 ||
-                    form.values.price === "" ||
+                    form.values.price === undefined ||
                     form.values.name === ""
                   }
                 >
@@ -355,9 +413,25 @@ function App() {
           {/* <div className='flex justify-between space-x-2'>
             <button className='w-full'>Clear All</button>
             <button className='w-full'>Checkout</button>
-          </div> */}
+            </div> */}
+
+          {allItems.length > 0 && (
+            <Button
+              onClick={() => setModalCheck(true)}
+              color='indigo'
+              variant='filled'
+              fullWidth
+            >
+              checkout
+            </Button>
+          )}
         </div>
       </div>
+      <ModalCheckout
+        opened={modalCheck}
+        controlOpening={setModalCheck}
+        checkout={checkout}
+      />
     </>
   );
 }
